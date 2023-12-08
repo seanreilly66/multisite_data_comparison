@@ -51,7 +51,7 @@ metric_fn <- 'R/las_metric_function.R'
 csv_output <-
   'data/predictor_df/las_plot_metrics_{format(timestamp, "%Y%m%d%H%M")}.csv'
 
-n_cluster <- 3
+n_cluster <- 1
 
 # =========================== UAS Point cloud metrics ==========================
 
@@ -63,6 +63,8 @@ las_files <- list.files(
 ) %>%
   str_subset('DEMnorm')
 
+las_files <- las_files[1:2]
+
 cl <- makeCluster(n_cluster)
 registerDoParallel(cl)
 
@@ -70,14 +72,16 @@ las_metrics <- foreach(
   las_i = las_files,
   .combine = 'rbind',
   .packages = c('lidR', 'tidyverse', 'raster')
-) %dopar% {
-  source(metric_fn)
+) %do% {
+  
+  source('R/las_metric_function.R')
   
   c <- str_extract(las_i, '(?<=^c)[:digit:]+')
   p <- str_extract(las_i, '(?<=_p)[:digit:]+')
-  las_method <- str_extract(las_i, '(?<=^c[:digit:]+_)[:alpha:]+')
+  las_method <- str_extract(las_i, '[:alpha:]+(?=_p[:digit:])')
   
-  las_i_metrics <- readLAS(las_i) %>%
+  # las_i_metrics <- readLAS(las_i) %>%
+  las_i_metrics <- readLAS(las_i, filter = '-keep_random_fraction 0.01') %>%  
     cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
     as_tibble() %>%
     add_column(
