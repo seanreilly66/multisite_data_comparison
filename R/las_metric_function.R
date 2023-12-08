@@ -1,4 +1,4 @@
-als_cld_metrics <- function(z) {
+las_cld_metrics <- function(z) {
   # ----------------------------- Height metrics -------------------------------
   
   z_max = max(z, na.rm = TRUE)
