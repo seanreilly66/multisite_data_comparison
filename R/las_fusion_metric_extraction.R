@@ -50,7 +50,7 @@ library(glue)
 las_folder <- 'data/las'
 metric_fn <- 'R/las_metric_function.R'
 csv_output <-
-  'data/predictor_df/las_plot_metrics_{format(Sys.time(), "%Y%m%d%H%M")}.csv'
+  'data/predictor_df/las_fusion_plot_metrics_{format(Sys.time(), "%Y%m%d%H%M")}.csv'
 
 n_cluster <- 2
 
@@ -61,42 +61,23 @@ las_files <- list.files(
   pattern = '.las$',
   recursive = TRUE,
   full.names = TRUE
-) %>%
-  str_subset('DEMnorm')
+)
 
-# las_files <- las_files[1:2]
+tls_files <- str_subset(las_files, 'tls')
+zeb_files <- str_subset(las_files, 'zeb')
+uas_files <- str_subset(las_files, 'uas')
 
-cl <- makeCluster(n_cluster)
-registerDoParallel(cl)
+tls_files <- tls_files[2]
+uas_files <- uas_files[2]
+zeb_files <- zeb_files[2]
 
-las_metrics <- foreach(
-  las_i = las_files,
-  .combine = 'rbind',
-  .packages = c('lidR', 'tidyverse', 'raster')
-) %dopar% {
+uas <- readLAS(uas_files, filter = '-keep_random_fraction 0.5')
+zeb <- readLAS(zeb_files, filter = '-keep_random_fraction 0.05')
+tls <- readLAS(tls_files, filter = '-keep_random_fraction 0.01')
+
+x = plot(uas, pal = 'red')
+plot(tls, pal = 'grey', add = x)
+
+plot(tls, pal = 'grey')
+
   
-  source('R/las_metric_function.R')
-  
-  c <- str_extract(las_i, '(?<=[:punct:]c)[:digit:]+(?=_)')
-  p <- str_extract(las_i, '(?<=_p)[:digit:]+')
-  las_method <- str_extract(las_i, '[:alpha:]+(?=_p[:digit:])')
-  
-  las_i_metrics <- readLAS(las_i) %>%
-  # las_i_metrics <- readLAS(las_i, filter = '-keep_random_fraction 0.01') %>%  
-    cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
-    as_tibble() %>%
-    add_column(
-      campaign = c,
-      plot = p,
-      method = las_method,
-      .before = 1
-    ) %>%
-    add_column(file = las_i)
-  
-}
-
-stopCluster(cl)
-
-write_csv(las_metrics, glue(csv_output))
-
-# ==============================================================================
