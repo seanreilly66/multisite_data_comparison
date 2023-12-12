@@ -54,7 +54,7 @@ csv_output <-
 
 n_cluster <- 2
 
-# ============================= Point cloud metrics ============================
+# ================================ Identify files ==============================
 
 las_files <- list.files(
   path = las_folder,
@@ -63,21 +63,80 @@ las_files <- list.files(
   full.names = TRUE
 )
 
-tls_files <- str_subset(las_files, 'tls')
-zeb_files <- str_subset(las_files, 'zeb')
+tls_files <- str_subset(las_files, 'tls') %>%
+  str_subset('DEMnorm')
+hmls_files <- str_subset(las_files, 'zeb') %>%
+  str_subset('step4')
 uas_files <- str_subset(las_files, 'uas')
 
-tls_files <- tls_files[2]
-uas_files <- uas_files[2]
-zeb_files <- zeb_files[2]
+# ========================= Fusion point cloud metrics ========================= 
 
-uas <- readLAS(uas_files, filter = '-keep_random_fraction 0.5')
-zeb <- readLAS(zeb_files, filter = '-keep_random_fraction 0.05')
-tls <- readLAS(tls_files, filter = '-keep_random_fraction 0.01')
+cl <- makeCluster(n_cluster)
+registerDoParallel(cl)
 
-x = plot(uas, pal = 'red')
-plot(tls, pal = 'grey', add = x)
+# i = 2
+# ldr_i = c(tls_files, zeb_files)[i]
 
-plot(tls, pal = 'grey')
-
+fusion_metrics <- foreach(
+  ldr_i = c(tls_files, hmls_files),
+  .combine = 'rbind',
+  .packages = c('lidR', 'tidyverse', 'raster', 'glue')
+) %dopar% {
   
+  source('R/las_metric_function.R')
+
+  c <- str_extract(ldr_i, '(?<=[:punct:]c)[:digit:]+(?=_)')
+  p <- str_extract(ldr_i, '(?<=_p)[:digit:]+')
+  ldr_method <- str_extract(ldr_i, '[:alpha:]+(?=_p[:digit:])')
+  
+  uas_i <- str_subset(uas_files, glue('c{c}_p{p}'))
+  
+  # return NA values if no matching UAS file
+  if (length(uas_i) != 1) {
+    
+    fusion_i_metrics = data.frame(X = -99999, Y = -99999, Z = -99999) %>%
+      LAS() %>%
+      cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+      as_tibble() %>%
+      mutate(across(.cols = everything(), ~ ifelse(T, NA, .))) %>%
+      add_column(
+        campaign = c,
+        plot = p,
+        method = ldr_method,
+        .before = 1
+      ) %>%
+      add_column(lidar_file = ldr_i,
+                 uas_file = NA)
+    
+  } else {
+    
+    uas_data <- readLAS(uas_i, select = '')@data
+    ldr_data <- readLAS(ldr_i, select = '')@data
+    
+    fusion_i_metrics <- rbind(uas_data, ldr_data) %>%
+      LAS() %>% 
+      cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+      as_tibble() %>%
+      add_column(
+        campaign = c,
+        plot = p,
+        method = ldr_method,
+        .before = 1
+      ) %>%
+      add_column(lidar_file = ldr_i,
+                 uas_file = uas_i)
+    
+  }
+  
+}
+
+stopCluster(cl)
+
+
+write_csv(las_metrics, glue(csv_output))
+
+# ==============================================================================
+
+
+
+    
