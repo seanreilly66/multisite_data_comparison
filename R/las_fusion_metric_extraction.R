@@ -1,17 +1,17 @@
 # ==============================================================================
 #
-# Plot level point cloud metric extraction
+# LAS data fusion plot level point cloud metric extraction
 #
 # ==============================================================================
 #
 # Author: Sean Reilly, sean.reilly66@gmail.com
 #
-# Created: 31 Jan 2022
-# Last commit: 5 Dec 2023
+# Created: 12 Dec 2023
+# Last commit: 12 Dec 2023
 #
 # Status: Complete
 #
-# Created as part of 2021 UAS biomass study.
+# Created as part of 2023 multisite data comparison study.
 #
 # ==============================================================================
 #
@@ -83,7 +83,7 @@ fusion_metrics <- foreach(
   .packages = c('lidR', 'tidyverse', 'raster', 'glue')
 ) %dopar% {
   
-  source('R/las_metric_function.R')
+  source(metric_fn)
 
   c <- str_extract(ldr_i, '(?<=[:punct:]c)[:digit:]+(?=_)')
   p <- str_extract(ldr_i, '(?<=_p)[:digit:]+')
@@ -133,7 +133,7 @@ fusion_metrics <- foreach(
 stopCluster(cl)
 
 
-write_csv(las_metrics, glue(csv_output))
+write_csv(fusion_metrics, glue(csv_output))
 
 # ==============================================================================
 
