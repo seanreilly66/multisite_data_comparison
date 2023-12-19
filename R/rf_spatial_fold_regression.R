@@ -15,8 +15,10 @@ library(MLmetrics)
 
 response_csv <- 'data/field_data/plot_field_measurements.csv'
 structural_pred_csv <- 'data/predictor_df/c46_uas_tls_join_struct_predictors.csv'
-spec_pred_csv <- NA
-spec_pred_csv <- 'data/predictor_df/uas_spec_predictors.csv'
+spec_pred_csv <- 'data/predictor_df/planet_spec_predictors.csv'
+
+structural_pred_csv <- NA
+# spec_pred_csv <- NA
 
 spatial_cluster_shp <- 'data/spatial_cluster/spatial_cluster.shp'
 cluster_lookup_file <- 'data/spatial_cluster/spatial_cluster_lookup.csv'
