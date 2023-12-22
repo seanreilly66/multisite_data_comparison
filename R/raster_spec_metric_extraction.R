@@ -1,6 +1,6 @@
 # ==============================================================================
 #
-# Plot level satellite imagery spectral metric extraction
+# Plot level imagery spectral metric extraction
 #
 # ==============================================================================
 #
