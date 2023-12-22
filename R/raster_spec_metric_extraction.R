@@ -111,7 +111,7 @@ rast_val <- foreach(
   
   rast_val = terra::extract(rast_i, plot_shp, exact = T) %>%
     filter(!is.na(red)) %>%
-    left_join(record_id)   %>%
+    left_join(record_id) %>%
     select(-ID) %>%
     relocate(campaign, plot)
   
@@ -123,63 +123,28 @@ write_csv(rast_val, glue(raw_val_csv))
 
 # ========================= Generate summary metrics =========================== 
 
-colnames(rast_val)
+spec_var <- rast_val %>%
+  select(-campaign, -plot, -fraction) %>%
+  colnames()
 
+rast_metrics <- rast_val %>%
+  group_by(campaign, plot) %>%
+  dplyr::summarise(across(
+    .cols = all_of(spec_var),
+    .fns = list(
+      mean = ~ wtd.mean(.x, fraction),
+      sd = ~ sqrt(wtd.var(.x, fraction)),
+      iqr = IQR,
+      max = max,
+      min = min,
+      range = ~ max(.x) - min(.x),
+      kurt = kurtosis,
+      skew = skewness
+    )
+  )) %>%
+  add_column(method = spec_method, .before = 3)
 
-
-
-
-# rast_metrics <- rast_val %>%
-#   group_by(campaign, plot) %>%
-#   dplyr::summarize(
-#     blue_mean = wtd.mean(blue, fraction),
-#     green_mean = wtd.mean(green, fraction),
-#     red_mean = wtd.mean(red, fraction),
-#     nir_mean = wtd.mean(nir, fraction),
-#     ndvi_mean = wtd.mean(ndvi, fraction),
-#     gndvi_mean = wtd.mean(gndvi, fraction),
-#     blue_sd = sqrt(wtd.var(blue, fraction)),
-#     green_sd = sqrt(wtd.var(green, fraction)),
-#     red_sd = sqrt(wtd.var(red, fraction)),
-#     nir_sd = sqrt(wtd.var(nir, fraction)),
-#     ndvi_sd = sqrt(wtd.var(ndvi, fraction)),
-#     gndvi_sd = sqrt(wtd.var(gndvi, fraction)),
-#     blue_iqr = IQR(blue),
-#     green_iqr = IQR(green),
-#     red_iqr = IQR(red),
-#     nir_iqr = IQR(nir),
-#     ndvi_iqr = IQR(ndvi),
-#     gndvi_iqr = IQR(gndvi),
-#     blue_max = max(blue),
-#     green_max = max(green),
-#     red_max = max(red),
-#     nir_max = max(nir),
-#     ndvi_max = max(ndvi),
-#     gndvi_max = max(gndvi),
-#     blue_min = min(blue),
-#     green_min = min(green),
-#     red_min = min(red),
-#     nir_min = min(nir),
-#     ndvi_min = min(ndvi),
-#     gndvi_min = min(gndvi),
-#     blue_skew = skewness(blue),
-#     green_skew = skewness(green),
-#     red_skew = skewness(red),
-#     nir_skew = skewness(nir),
-#     ndvi_skew = skewness(ndvi),
-#     gndvi_skew = skewness(gndvi),
-#     blue_kurt = kurtosis(blue),
-#     green_kurt = kurtosis(green),
-#     red_kurt = kurtosis(red),
-#     nir_kurt = kurtosis(nir),
-#     ndvi_kurt = kurtosis(ndvi),
-#     gndvi_kurt = kurtosis(gndvi)
-#   ) %>%
-#   add_column(method = spec_method, .before = 3)
-# 
-# 
-# write_csv(rast_metrics, glue(metric_output_csv))
-# write_csv(rast_val, glue(raw_val_csv))
+write_csv(rast_metrics, glue(metric_output_csv))
 
 # ==============================================================================
 
