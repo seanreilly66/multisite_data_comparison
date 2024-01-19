@@ -81,8 +81,13 @@ las_metrics <- foreach(
   p <- str_extract(file_i, '(?<=_p)[:digit:]+')
   las_method <- str_extract(file_i, '[:alpha:]+(?=_p[:digit:])')
   
+<<<<<<< HEAD
   las_i <- readLAS(file_i)
   # las_i <- readLAS(file_i, filter = '-keep_random_fraction 0.0001')
+=======
+  # las_i <- readLAS(file_i)
+  las_i <- readLAS(file_i, filter = '-keep_random_fraction 0.0001')
+>>>>>>> 73a75f2a99019c354077d60b6395ebb0a6631aaf
   
   h_thresh <- c(0.25, 0.5, 0.75, 0.9)
   
