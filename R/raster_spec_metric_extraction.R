@@ -73,7 +73,7 @@ file_pattern <- 'SR.tif$'
 raw_val_csv <- 'data/spectral/{spec_method}_spec_val.csv'
 metric_output_csv <- 'data/predictor_df/{spec_method}_spec_predictors.csv'
 
-n_cluster = 8
+n_cluster = 5
 
 # =================================== Setup ==================================== 
 
@@ -95,8 +95,9 @@ registerDoParallel(cl)
 rast_val <- foreach(
   file_i = rast_files,
   .combine = 'rbind',
-  .packages = c('terra', 'tidyverse')
-) %dopar% {
+  .packages = c('terra', 'tidyverse', 'glue'),
+  .export = 'spec_method'
+) %do% {
   
   rast_i <- rast(file_i)
   
@@ -147,4 +148,3 @@ rast_metrics <- rast_val %>%
 write_csv(rast_metrics, glue(metric_output_csv))
 
 # ==============================================================================
-
