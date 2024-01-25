@@ -102,31 +102,55 @@ fusion_metrics <- foreach(
       add_column(
         campaign = c,
         plot = p,
-        method = ldr_method,
+        lidar_method = ldr_method,
+        type = NA,
+        h_thresh = NA,
+        vox_dim = NA,
         .before = 1
       ) %>%
       add_column(lidar_file = ldr_i,
                  uas_file = NA)
     
-  } else {
+    return(fusion_i_metrics)
     
-    uas_data <- readLAS(uas_i, select = '')@data
-    ldr_data <- readLAS(ldr_i, select = '')@data
+  } 
+
+  # Read in data
+  uas <- readLAS(uas_i, select = '')
+  ldr <- readLAS(ldr_i, select = '')
+  
+  # Full data
+  
+  fusion_las <- rbind(uas@data, ldr@data) %>%
+    LAS() %>%
+    filter_poi(Z > 0.25)
+  
+  full_pnt_metrics <- fusion_las %>%
+    cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+    as_tibble() %>%
+    add_column(
+      campaign = c,
+      plot = p,
+      lidar_method = ldr_method,
+      type = 'full_fusion',
+      h_thresh = 0.25,
+      vox_dim = NA,
+      .before = 1
+    ) %>%
+    add_column(lidar_file = ldr_i,
+               uas_file = uas_i)
+  
+  # Voxelized data
+  
+  
+  
+  # Decimated data
+  
+  # Voxelized decimated data
+  
+  fusion_i_metrics <- rbind(uas_data, ldr_data) %>%
+    LAS() %>% 
     
-    fusion_i_metrics <- rbind(uas_data, ldr_data) %>%
-      LAS() %>% 
-      cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
-      as_tibble() %>%
-      add_column(
-        campaign = c,
-        plot = p,
-        method = ldr_method,
-        .before = 1
-      ) %>%
-      add_column(lidar_file = ldr_i,
-                 uas_file = uas_i)
-    
-  }
   
 }
 
