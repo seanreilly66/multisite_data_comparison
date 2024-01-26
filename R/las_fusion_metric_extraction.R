@@ -7,7 +7,7 @@
 # Author: Sean Reilly, sean.reilly66@gmail.com
 #
 # Created: 12 Dec 2023
-# Last commit: 12 Dec 2023
+# Last commit: 25 Jan  2023
 #
 # Status: Complete
 #
@@ -80,7 +80,7 @@ registerDoParallel(cl)
 fusion_metrics <- foreach(
   ldr_i = c(tls_files, hmls_files),
   .combine = 'rbind',
-  .packages = c('lidR', 'tidyverse', 'raster', 'glue')
+  .packages = c('lidR', 'tidyverse', 'raster', 'glue', 'doParallel')
 ) %dopar% {
   
   source(metric_fn)
@@ -90,6 +90,8 @@ fusion_metrics <- foreach(
   ldr_method <- str_extract(ldr_i, '[:alpha:]+(?=_p[:digit:])')
   
   uas_i <- str_subset(uas_files, glue('c{c}_p{p}'))
+  
+  vox_dim <- c(0.1, 0.25, 0.5, 1, 3.7)
   
   # return NA values if no matching UAS file
   if (length(uas_i) != 1) {
@@ -116,23 +118,28 @@ fusion_metrics <- foreach(
   } 
 
   # Read in data
-  uas <- readLAS(uas_i, select = '')
-  ldr <- readLAS(ldr_i, select = '')
+  
+  uas <- readLAS(uas_i, select = '') %>%
+    filter_poi(Z > 0.25)
+  
+  ldr <- readLAS(ldr_i, select = '') %>%
+    filter_poi(Z > 0.25)
   
   # Full data
   
-  fusion_las <- rbind(uas@data, ldr@data) %>%
+  full_fusion <- rbind(uas@data, ldr@data) %>%
     LAS() %>%
     filter_poi(Z > 0.25)
   
-  full_pnt_metrics <- fusion_las %>%
+  full_pnt_metrics <- full_fusion %>%
     cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
     as_tibble() %>%
     add_column(
       campaign = c,
       plot = p,
-      lidar_method = ldr_method,
-      type = 'full_fusion',
+      lidar_method = ldr_method,        
+      pnt_cloud = 'full_fusion',
+      metric_type = 'pntcld',
       h_thresh = 0.25,
       vox_dim = NA,
       .before = 1
@@ -140,17 +147,104 @@ fusion_metrics <- foreach(
     add_column(lidar_file = ldr_i,
                uas_file = uas_i)
   
-  # Voxelized data
-  
-  
+  full_vox_metrics <- foreach(
+    vox_i = vox_dim,
+    .combine = 'rbind'
+  ) %do% {
+    
+    full_vox_metrics <- full_fusion %>%
+      voxelize_points(res = vox_i) %>%
+      cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+      as_tibble() %>%
+      add_column(
+        campaign = c,
+        plot = p,
+        lidar_method = ldr_method,        
+        pnt_cloud = 'full_fusion',
+        metric_type = 'vox',
+        h_thresh = 0.25,
+        vox_dim = vox_i,
+        .before = 1
+      ) %>%
+      add_column(file = file_i)
+    
+  }
+
   
   # Decimated data
   
-  # Voxelized decimated data
+  dec_res = 1
   
-  fusion_i_metrics <- rbind(uas_data, ldr_data) %>%
-    LAS() %>% 
+  ldr_dens = grid_metrics(ldr, ~ length(Z), res = dec_res) %>%
+    cellStats(stat = 'mean')
+  
+  uas_dens = grid_metrics(uas, ~ length(Z), res = dec_res) %>%
+    cellStats(stat = 'mean')
+  
+  min_dens = min(c(ldr_dens, uas_dens))
+  
+  ldr_dec <- decimate_points(
+    las = ldr, 
+    algorithm = homogenize(
+      density = min_dens,
+      res = dec_res
+    ))
+  
+  uas_dec <- decimate_points(
+    las = uas, 
+    algorithm = homogenize(
+      density = min_dens,
+      res = dec_res
+    ))
+  
+  
+  dec_fusion <- rbind(uas_dec@data, ldr_dec@data) %>%
+    LAS() %>%
+    filter_poi(Z > 0.25)
+  
+  dec_pnt_metrics <- dec_fusion %>%
+    cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+    as_tibble() %>%
+    add_column(
+      campaign = c,
+      plot = p,
+      lidar_method = ldr_method,        
+      pnt_cloud = 'decimated_fusion',
+      metric_type = 'pntcld',
+      h_thresh = 0.25,
+      vox_dim = NA,
+      .before = 1
+    ) %>%
+    add_column(lidar_file = ldr_i,
+               uas_file = uas_i)
+  
+  dec_vox_metrics <- foreach(
+    vox_i = vox_dim,
+    .combine = 'rbind'
+  ) %do% {
     
+    dec_vox_metrics <- dec_fusion %>%
+      voxelize_points(res = vox_i) %>%
+      cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
+      as_tibble() %>%
+      add_column(
+        campaign = c,
+        plot = p,
+        lidar_method = ldr_method,
+        pnt_cloud = 'decimated_fusion',
+        metric_type = 'vox',
+        h_thresh = 0.25,
+        vox_dim = vox_i,
+        .before = 1
+      ) %>%
+      add_column(file = file_i)
+    
+  }
+  
+  fusion_metrics <- full_pnt_metrics %>%
+    add_row(full_vox_metrics)
+    add_row(dec_pnt_metrics)
+    add_row(dec_vox_metrics)
   
 }
 
@@ -160,7 +254,3 @@ stopCluster(cl)
 write_csv(fusion_metrics, glue(csv_output))
 
 # ==============================================================================
-
-
-
-    
