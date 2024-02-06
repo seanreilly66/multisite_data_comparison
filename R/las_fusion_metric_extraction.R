@@ -52,7 +52,7 @@ metric_fn <- 'R/las_metric_function.R'
 csv_output <-
   'data/predictor_df/las_fusion_plot_metrics_{format(Sys.time(), "%Y%m%d%H%M")}.csv'
 
-n_cluster <- 2
+# n_cluster <- 2
 
 # ================================ Identify files ==============================
 
@@ -71,17 +71,17 @@ uas_files <- str_subset(las_files, 'uas')
 
 # ========================= Fusion point cloud metrics ========================= 
 
-cl <- makeCluster(n_cluster)
-registerDoParallel(cl)
-
+# cl <- makeCluster(n_cluster)
+# registerDoParallel(cl)
+# 
 # i = 2
-# ldr_i = c(tls_files, zeb_files)[i]
+# ldr_i = c(tls_files, hmls_files)[i]
 
 fusion_metrics <- foreach(
   ldr_i = c(tls_files, hmls_files),
   .combine = 'rbind',
   .packages = c('lidR', 'tidyverse', 'raster', 'glue', 'doParallel')
-) %dopar% {
+) %do% {
   
   source(metric_fn)
 
@@ -105,8 +105,9 @@ fusion_metrics <- foreach(
         campaign = c,
         plot = p,
         lidar_method = ldr_method,
-        type = NA,
-        h_thresh = NA,
+        pnt_cloud = NA,
+        metric_type = NA,
+        h_thresh = 0.25,
         vox_dim = NA,
         .before = 1
       ) %>%
@@ -119,18 +120,14 @@ fusion_metrics <- foreach(
 
   # Read in data
   
-  uas <- readLAS(uas_i, select = '') %>%
-    filter_poi(Z > 0.25)
-  
-  ldr <- readLAS(ldr_i, select = '') %>%
-    filter_poi(Z > 0.25)
+  uas <- readLAS(uas_i, select = '', filter = 'drop_z_below 0.25')
+  ldr <- readLAS(ldr_i, select = '', filter = 'drop_z_below 0.25')
   
   # Full data
   
   full_fusion <- rbind(uas@data, ldr@data) %>%
-    LAS() %>%
-    filter_poi(Z > 0.25)
-  
+    LAS()
+
   full_pnt_metrics <- full_fusion %>%
     cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
     as_tibble() %>%
@@ -166,7 +163,8 @@ fusion_metrics <- foreach(
         vox_dim = vox_i,
         .before = 1
       ) %>%
-      add_column(file = file_i)
+      add_column(lidar_file = ldr_i,
+                 uas_file = uas_i)
     
   }
 
@@ -176,10 +174,10 @@ fusion_metrics <- foreach(
   dec_res = 1
   
   ldr_dens = grid_metrics(ldr, ~ length(Z), res = dec_res) %>%
-    cellStats(stat = 'mean')
+    raster::cellStats(stat = 'mean')
   
   uas_dens = grid_metrics(uas, ~ length(Z), res = dec_res) %>%
-    cellStats(stat = 'mean')
+    raster::cellStats(stat = 'mean')
   
   min_dens = min(c(ldr_dens, uas_dens))
   
@@ -237,13 +235,14 @@ fusion_metrics <- foreach(
         vox_dim = vox_i,
         .before = 1
       ) %>%
-      add_column(file = file_i)
+      add_column(lidar_file = ldr_i,
+                 uas_file = uas_i)
     
   }
   
   fusion_metrics <- full_pnt_metrics %>%
-    add_row(full_vox_metrics)
-    add_row(dec_pnt_metrics)
+    add_row(full_vox_metrics) %>%
+    add_row(dec_pnt_metrics) %>%
     add_row(dec_vox_metrics)
   
 }
