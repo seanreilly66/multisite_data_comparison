@@ -247,7 +247,7 @@ fusion_metrics <- foreach(
   
 }
 
-stopCluster(cl)
+# stopCluster(cl)
 
 
 write_csv(fusion_metrics, glue(csv_output))
