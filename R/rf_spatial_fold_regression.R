@@ -14,7 +14,7 @@ library(MLmetrics)
 # Input files
 
 response_csv <- 'data/field_data/plot_field_measurements.csv'
-structural_pred_csv <- 'data/predictor_df/c46_uas_tls_join_struct_predictors.csv'
+# structural_pred_csv <- 'data/predictor_df/tls_struct_predictors.csv'
 spec_pred_csv <- 'data/predictor_df/planet_spec_predictors.csv'
 
 structural_pred_csv <- NA
@@ -40,11 +40,8 @@ set_seed_val <- 111
 n_cores <- detectCores() - 5
 
 
-
-output_file <- 'c46test_rf_spclst_{pred_type}_{type}_{format(timestamp, "%Y%m%d_%H%M")}'
-k_folds <- 5
-rfe_rep <- 5
-
+n_cores <- 5
+output_file <- 'planet_rf_spclst_{pred_type}_{type}_{format(timestamp, "%Y%m%d_%H%M")}'
 
 # ==============================================================================
 # ============================== Data preparation ==============================
@@ -69,10 +66,10 @@ response_var <- response_df %>%
   str_subset('_n', negate = TRUE)
 
 # Predictor variables
-
-structural_pred <- read_csv(structural_pred_csv)
   
-if (!is.na(spec_pred_csv)) {
+if (!is.na(spec_pred_csv) & !is.na(structural_pred_csv)) {
+  
+  structural_pred <- read_csv(structural_pred_csv)
   
   spec_pred <- read_csv(spec_pred_csv) %>%
     rename(spec_method = method)
@@ -84,12 +81,20 @@ if (!is.na(spec_pred_csv)) {
     select(-campaign, -plot, -method, -spec_method) %>%
     colnames()
   
-} else {
+} else if (!is.na(spec_pred_csv) & is.na(structural_pred_csv)) {
   
-  predictor_df <- structural_pred
+  predictor_df <- read_csv(spec_pred_csv) 
   
   predictor_var <- predictor_df %>%
     select(-campaign, -plot, -method) %>%
+    colnames()
+  
+} else {
+  
+  predictor_df <- read_csv(structural_pred_csv)
+  
+  predictor_var <- predictor_df %>%
+    select(-campaign, -plot, -method, -type, -h_thresh, -vox_dim) %>%
     colnames()
   
 }
@@ -105,7 +110,7 @@ model_df <- response_df %>%
   left_join(spatial_cluster)
 
 
-rm(response_df, predictor_df, spatial_cluster, structural_pred)
+rm(response_df, predictor_df, spatial_cluster)
 
 
 # ==============================================================================
