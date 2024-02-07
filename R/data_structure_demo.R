@@ -64,19 +64,37 @@ pred = bind_rows(struct, spec, combo)
 full = left_join(pred, response, relationship = 'many-to-many')
 
 full = full %>%
-  group_by(group1, group2) %>%
-  nest(pred = starts_with('var'), resp = 'resp_val')
+  select(-id) %>%
+  group_by(group1, group2, resp_type) %>%
+  nest()
 
-ml_train <- function(predictor, response) {
+mdl_train <- function(df) {
   
-  ml_train = train(
-    x = predictor,
-    y = response,
+  df = df %>%
+    mutate(across(.cols = everything(), ~ replace_na(.x, -9999)))
+  
+  mdl_train = train(
+    resp_val ~ .,
+    data = df,
     method = 'rf'
   )
   
 }
 
-full = full %>%
+mdl_stats <- function(mdl) {
   
-  mutate(ml_result = map(.x = full, .f = ~ ml_train(predictor = pred, response = resp)))
+  mtry_opt = mdl$bestTune %>%
+    pull(mtry)
+  
+  mdl_stats <- mdl$results %>%
+    filter(mtry == mtry_opt)
+  
+}
+
+full = full %>%
+  mutate(rf = map(.x = data, 
+                  .f = ~ mdl_train(df = .x)),
+         rf_stats = map(.x = rf,
+                        .f = ~mdl_stats(mdl = .x))) %>%
+  unnest(rf_stats)
+
