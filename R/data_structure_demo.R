@@ -1,5 +1,6 @@
 library(tidyverse)
 library(caret)
+library(doParallel)
 
 # ==============================================================================
 
@@ -103,132 +104,17 @@ full = full %>%
 # ==============================================================================
 
 
-k_folds <- 3
-rfe_rep <- 3
-training_rep <- 10
+source('R/rf_spatial_fold_func.R')
 
-pre_process <- c('center', 'scale')
-
-set_seed_val <- 111
-
-n_cores <- detectCores() - 5
-
-
-
-
-x = full[[4]][[1]]
-
-
-set.seed(set_seed_val)
-
-rfe_folds <- list()
-
-for(i in 1:rfe_rep) {
-  
-  i_folds <- groupKFold(group = x$cluster_group, k = k_folds)
-  
-  pad_rep <- str_pad(i, nchar(rfe_rep), side = 'left', pad = '0')
-  names(i_folds) <- sprintf('%s.Rep%s', names(i_folds), pad_rep)
-  
-  rfe_folds <- append(rfe_folds, i_folds)
-  
-}
-
-train_folds <- list()
-
-for(i in 1:training_rep) {
-  
-  i_folds <- groupKFold(group = cluster_index, k = k_folds)
-  
-  pad_rep <- str_pad(i, nchar(training_rep), side = 'left', pad = '0')
-  names(i_folds) <- sprintf('%s.Rep%s', names(i_folds), pad_rep)
-  
-  train_folds <- append(train_folds, i_folds)
-  
-}
-
-
-
-
-
-
-
-
-
-mdl_train <- function(df) {
-  
-  df = df %>%
-    mutate(across(.cols = everything(), ~ replace_na(.x, -9999)))
-  
-  mdl_train = train(
-    resp_val ~ .,
-    data = df,
-    method = 'rf'
-  )
-  
-}
-
-mdl_stats <- function(mdl) {
-  
-  mtry_opt = mdl$bestTune %>%
-    pull(mtry)
-  
-  mdl_stats <- mdl$results %>%
-    filter(mtry == mtry_opt)
-  
-}
 
 full = full %>%
   mutate(rf = map(.x = data, 
-                  .f = ~ mdl_train(df = .x)),
+                  .f = ~ mdl_func(df = .x)))
+
+
+
+
+,
          rf_stats = map(.x = rf,
                         .f = ~mdl_stats(mdl = .x))) %>%
   unnest(rf_stats)
-
-
-
-
-
-
-# --------------------- Repeated grouped K fold indexing ---------------------
-
-
-spatial_cluster_shp <- 'data/spatial_cluster/spatial_cluster.shp'
-cluster_lookup_file <- 'data/spatial_cluster/spatial_cluster_lookup.csv'
-
-response_i = 'biomass_sum'
-
-cluster_name <- cluster_lookup %>%
-  filter(variable == response_i) %>%
-  pull(cluster)
-
-cluster_index <- pull(input_df, cluster_name)
-
-set.seed(set_seed_val)
-
-rfe_folds <- list()
-
-for(i in 1:rfe_rep) {
-  
-  i_folds <- groupKFold(group = cluster_index, k = k_folds)
-  
-  pad_rep <- str_pad(i, nchar(rfe_rep), side = 'left', pad = '0')
-  names(i_folds) <- sprintf('%s.Rep%s', names(i_folds), pad_rep)
-  
-  rfe_folds <- append(rfe_folds, i_folds)
-  
-}
-
-train_folds <- list()
-
-for(i in 1:training_rep) {
-  
-  i_folds <- groupKFold(group = cluster_index, k = k_folds)
-  
-  pad_rep <- str_pad(i, nchar(training_rep), side = 'left', pad = '0')
-  names(i_folds) <- sprintf('%s.Rep%s', names(i_folds), pad_rep)
-  
-  train_folds <- append(train_folds, i_folds)
-  
-}
-
