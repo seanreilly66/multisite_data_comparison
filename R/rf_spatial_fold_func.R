@@ -1,7 +1,15 @@
+k_folds <- 3
+rfe_rep <- 3
+training_rep <- 10
+
+pre_process <- c('center', 'scale')
+
+set_seed_val <- 111
+
+n_cores <- 1
 
 
-
-rf_rfe <- function(df) {
+mdl_func <- function(df) {
   
   # --------------------- Repeated grouped K fold indexing ---------------------
   
@@ -9,7 +17,7 @@ rf_rfe <- function(df) {
   
   rfe_folds <- list()
   
-  for(i in 1:rfe_rep) {
+  for (i in 1:rfe_rep) {
     
     i_folds <- groupKFold(group = df$cluster_group, k = k_folds)
     
@@ -22,7 +30,7 @@ rf_rfe <- function(df) {
   
   train_folds <- list()
   
-  for(i in 1:training_rep) {
+  for (i in 1:training_rep) {
     
     i_folds <- groupKFold(group = df$cluster_group, k = k_folds)
     
@@ -71,15 +79,13 @@ rf_rfe <- function(df) {
   
   pred = df %>% select(all_of(predictors(rfe_profile)))
   
-  ml_train <- train(
-    x = ml_predictor %>%
-      select(all_of(ml_var)),
-    y = ml_response,
+  rf_train <- train(
+    x = pred,
+    y = resp,
     method = "rf",
     preProcess = pre_process,
     trControl = trainControl(
       index = train_folds,
-      summaryFunction = summary_func,
       savePredictions = 'final',
       returnResamp = 'final',
     ),
@@ -90,63 +96,27 @@ rf_rfe <- function(df) {
   
   stopCluster(cl)
   
-  
-  
-  
+  return(rf_train)
   
 }
 
 
+mdl_stats <- function(mdl) {
+  
+  mtry_opt = mdl$bestTune %>%
+    pull(mtry)
+  
+  mdl_stats <- mdl$results %>%
+    filter(mtry == mtry_opt)
+  
+}
 
-# ----------------------------------- RFE ------------------------------------
-
-cl <- makeCluster(n_cores)
-registerDoParallel(cl)
-
-set.seed(set_seed_val)
-
-message('RFE initiated: ', Sys.time())
-
-ml_profile <- rfe(
-  x = ml_predictor,
-  y = ml_response,
-  sizes = c(1:n_predictors),
-  rfeControl = rfeControl(
-    functions = rfFuncs,
-    index = rfe_folds
-  ),
-  preProcess = pre_process,
-  metric = "RMSE"
-)
-
-stopCluster(cl)
-
-ml_var <- predictors(ml_profile)
-
-ml_rfe[[glue('{response_i}_rf_rfe_spatial_folds')]] <- ml_profile
-
-# -------------------------------- Training ----------------------------------
-
-cl <- makeCluster(n_cores)
-registerDoParallel(cl)
-
-set.seed(set_seed_val)
-
-message('Random forest initiated: ', Sys.time())
-
-ml_train <- train(
-  x = ml_predictor %>%
-    select(all_of(ml_var)),
-  y = ml_response,
-  method = "rf",
-  preProcess = pre_process,
-  trControl = trainControl(
-    index = train_folds,
-    summaryFunction = summary_func,
-    savePredictions = 'final',
-    returnResamp = 'final',
-  ),
-  ntree = 1000,
-  tuneLength = 100,
-  metric = "RMSE"
-)
+mdl_var <- function(mdl) {
+  
+  var_imp <- varImp(mdl)
+  
+  var_imp <- var_imp$importance %>%
+    rownames()
+  
+  
+}
