@@ -62,8 +62,8 @@ plot_shp_file <- 'field_plots'
 
 # Planet data
 spec_method <- 'planet'
-raster_folder <- 'data/spectral/planet/raw_imagery'
-file_pattern <- 'SR.tif$'
+raster_folder <- 'data/spectral/planet'
+file_pattern <- '.tif$'
 
 # # UAS data
 # spec_method <- 'uas'
@@ -73,7 +73,7 @@ file_pattern <- 'SR.tif$'
 raw_val_csv <- 'data/spectral/{spec_method}_spec_val.csv'
 metric_output_csv <- 'data/predictor_df/{spec_method}_spec_predictors.csv'
 
-n_cluster = 5
+# n_cluster = 5
 
 # =================================== Setup ==================================== 
 
@@ -89,8 +89,8 @@ rast_files <- list.files(raster_folder, pattern = file_pattern, full.names = T)
 
 # ====================== Extract plot raster cell values ======================= 
 
-cl <- makeCluster(n_cluster)
-registerDoParallel(cl)
+# cl <- makeCluster(n_cluster)
+# registerDoParallel(cl)
 
 rast_val <- foreach(
   file_i = rast_files,
@@ -99,7 +99,16 @@ rast_val <- foreach(
   .export = 'spec_method'
 ) %do% {
   
+  message('File initiate: ', file_i)
+  
   rast_i <- rast(file_i)
+  
+  if (spec_method == 'uas') {
+    
+    names(rast_i) <- names(rast_i) %>%
+      str_extract('[:alpha:]+$')
+    
+  }
   
   if ('nir' %in% names(rast_i)) {
     rast_i$ndvi <- (rast_i$nir - rast_i$red) / (rast_i$nir + rast_i$red)
@@ -114,21 +123,32 @@ rast_val <- foreach(
     filter(!is.na(red)) %>%
     left_join(record_id) %>%
     select(-ID) %>%
-    relocate(campaign, plot)
+    relocate(campaign, plot) %>%
+    add_column(file = file_i)
+
+  c <- str_extract(file_i, '(?<=[:punct:]c)[:digit:]+(?=_)')
+  
+  rast_val <- rast_val %>%
+    filter(campaign == c)
+  
+  message('File complete: ', file_i)
+  
+  return(rast_val)
   
 }
 
-stopCluster(cl)
+# stopCluster(cl)
 
 write_csv(rast_val, glue(raw_val_csv))
 
 # ========================= Generate summary metrics =========================== 
 
 spec_var <- rast_val %>%
-  select(-campaign, -plot, -fraction) %>%
+  select(-campaign, -plot, -fraction, -file) %>%
   colnames()
 
 rast_metrics <- rast_val %>%
+  select(-file) %>%
   group_by(campaign, plot) %>%
   dplyr::summarise(across(
     .cols = all_of(spec_var),
