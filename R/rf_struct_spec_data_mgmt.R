@@ -3,10 +3,6 @@
 library(tidyverse)
 library(sf)
 library(glue)
-# library(caret)
-
-# library(MLmetrics)
-# library(doParallel)
 
 # ==============================================================================
 # ================================= User inputs ================================
@@ -24,7 +20,8 @@ uas_spec_csv <- 'data/predictor_df/uas_spec_predictors.csv'
 planet_spec_csv <- 'data/predictor_df/planet_spec_predictors.csv'
 
 spatial_cluster_shp <- 'data/spatial_cluster/spatial_cluster.shp'
-cluster_lookup_file <- 'data/spatial_cluster/spatial_cluster_lookup.csv'
+cluster_lookup_file <-
+  'data/spatial_cluster/spatial_cluster_lookup.csv'
 
 # Output
 
@@ -50,13 +47,15 @@ spec <- c(uas_spec_csv, planet_spec_csv) %>%
 
 response <- read_csv(response_csv) %>%
   select(!ends_with(c('_n', '_na')), -site) %>%
-  pivot_longer(cols = !all_of(c('campaign', 'plot')),
-               names_to = 'resp_type',
-               values_to = 'resp_val',
-               values_drop_na = TRUE)
+  pivot_longer(
+    cols = !all_of(c('campaign', 'plot')),
+    names_to = 'resp_type',
+    values_to = 'resp_val',
+    values_drop_na = TRUE
+  )
 
 cluster_lookup <- read_csv(cluster_lookup_file)
-cluster_lookup = setNames(cluster_lookup$cluster,cluster_lookup$variable)
+cluster_lookup = setNames(cluster_lookup$cluster, cluster_lookup$variable)
 
 spatial_cluster <- read_sf(spatial_cluster_shp) %>%
   mutate(across(c('campaign', 'plot'), as.numeric)) %>%
@@ -64,11 +63,9 @@ spatial_cluster <- read_sf(spatial_cluster_shp) %>%
   as_tibble() %>%
   select(campaign, plot, starts_with('cl')) %>%
   rename(all_of(cluster_lookup)) %>%
-  pivot_longer(
-    col = !all_of(c('campaign', 'plot')),
-    names_to = 'resp_type',
-    values_to = 'cluster_group'
-  )
+  pivot_longer(col = !all_of(c('campaign', 'plot')),
+               names_to = 'resp_type',
+               values_to = 'cluster_group')
 
 # ==============================================================================
 # ========================== Nested dataset preparation ========================
@@ -100,7 +97,7 @@ mdl_df = left_join(struct, spec, relationship = 'many-to-many') %>%
 rm(struct, spec, response, spatial_cluster)
 
 # ==============================================================================
-# ================================ Apply model ================================= 
+# ================================ Apply model =================================
 # ==============================================================================
 
 k_folds <- 10
@@ -113,8 +110,6 @@ set_seed_val <- 111
 
 n_cores <- detectCores() - 5
 
-mdl_df = mdl_df[c(1,200),]
-
 source('R/rf_spatial_fold_func.R')
 
 tictoc::tic()
@@ -123,21 +118,20 @@ mdl_df <- mdl_df %>%
   mutate(
     rf = map(.x = data,
              .f = ~ mdl_func(
-               df = .x, 
-               extra_col = c('campaign', 'plot', 'cluster_group')),
-             .progress = 'rf_rfe'),
+               df = .x,
+               extra_col = c('campaign', 'plot', 'cluster_group')
+             )),
     rf_stats = map(.x = rf,
-                   .f = ~ mdl_stats(mdl = .x),
-                   .progress = 'stats'),
+                   .f = ~ mdl_stats(mdl = .x)),
     var_imp = map(.x = rf,
-                  .f = ~ mdl_varimp(mdl = .x),
-                  .progress = 'varimp')) %>%
+                  .f = ~ mdl_varimp(mdl = .x))
+  ) %>%
   unnest(c(rf_stats, var_imp))
 
 tictoc::toc()
 
 # ==============================================================================
-# =============================== Export output ================================ 
+# =============================== Export output ================================
 # ==============================================================================
 
 timestamp = format(Sys.time(), "%Y%m%d%H%M")
@@ -150,10 +144,13 @@ mdl_result <- mdl_df %>%
 write_csv(mdl_result,
           glue(results_folder, file_base, type = 'result', ext = 'csv'))
 
-mdl_best <- mdl_result %>%
+mdl_opt <- mdl_result %>%
   group_by(resp_type) %>%
   slice_max(order_by = Rsquared, n = 3)
 
-write_csv(mdl_result,
+write_csv(mdl_opt,
           glue(results_folder, file_base, type = 'opt', ext = 'csv'))
 
+# ==============================================================================
+# ==============================================================================
+# ==============================================================================
