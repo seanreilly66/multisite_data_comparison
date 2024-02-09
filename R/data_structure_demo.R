@@ -1,6 +1,4 @@
 library(tidyverse)
-library(caret)
-library(doParallel)
 
 # ==============================================================================
 
@@ -15,7 +13,7 @@ a = tibble(
 b = tibble(
   id = 1:10,
   group1 = 'b',
-  var1 = runif(10),
+  var1 = c(runif(5), rep(NA, 5)),
   var2 = runif(10),
   var3 = runif(10)
 )
@@ -96,25 +94,52 @@ full = left_join(pred, response, relationship = 'many-to-many')
 
 full = left_join(full, spatial_cluster)
 
+
 full = full %>%
-  select(-id) %>%
   group_by(group1, group2, resp_type) %>%
-  nest()
+  nest() %>%
+  mutate(
+    data = map(
+      .x = data,
+      .f = ~ janitor::remove_empty(.x, which = 'cols')
+    ),
+    data = map(.x = data, .f = ~ .x %>% mutate(
+      across(.cols = starts_with('var'), ~ replace_na(.x, -9999))
+    ))
+  )
 
 # ==============================================================================
+
+k_folds <- 3
+rfe_rep <- 3
+training_rep <- 10
+
+pre_process <- c('center', 'scale')
+
+set_seed_val <- 111
+
+n_cores <- 1
 
 
 source('R/rf_spatial_fold_func.R')
 
-
 full = full %>%
-  mutate(rf = map(.x = data, 
-                  .f = ~ mdl_func(df = .x)))
-
-
-
-
-,
+  spawn_progressbar() %>%
+  mutate(rf = map(.x = data,
+                  .f = ~ mdl_func(
+                    df = .x, 
+                    extra_col = c('id', 'cluster_group')
+                  ),
+                  .progress = T),
          rf_stats = map(.x = rf,
-                        .f = ~mdl_stats(mdl = .x))) %>%
-  unnest(rf_stats)
+                        .f = ~ mdl_stats(mdl = .x),
+                        .progress = TRUE),
+         var_imp = map(.x = rf,
+                       .f = ~ mdl_varimp(mdl = .x),
+                       .progress = TRUE) %>%
+  unnest(c(rf_stats, var_imp)))
+
+
+
+
+
