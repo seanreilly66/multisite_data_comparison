@@ -40,10 +40,23 @@ struct <- c(tls_struct_csv, zeb_struct_csv, uas_struct_csv) %>%
          struct_type = type) %>%
   select(-file)
 
+# Filter down to only overlapping plots
+struct <- struct %>%
+  semi_join(
+    filter(struct, struct_pred == 'tls'), 
+    by = c('campaign', 'plot')) %>%
+  semi_join(
+    filter(struct, struct_pred == 'zeb'), 
+    by = c('campaign', 'plot')) %>%
+  semi_join(
+    filter(struct, struct_pred == 'uas'), 
+    by = c('campaign', 'plot'))
+
 spec <- c(uas_spec_csv, planet_spec_csv) %>%
   lapply(read_csv) %>%
   bind_rows() %>%
-  rename(spec_pred = method)
+  rename(spec_pred = method) %>%
+  semi_join(struct)
 
 response <- read_csv(response_csv) %>%
   select(!ends_with(c('_n', '_na')), -site) %>%
@@ -73,7 +86,7 @@ spatial_cluster <- read_sf(spatial_cluster_shp) %>%
 
 mdl_df = left_join(struct, spec, relationship = 'many-to-many') %>%
   bind_rows(struct, spec, .) %>%
-  left_join(response, relationship = 'many-to-many') %>%
+  inner_join(response, relationship = 'many-to-many') %>%
   left_join(spatial_cluster) %>%
   group_by(struct_pred,
            struct_type,
@@ -92,7 +105,10 @@ mdl_df = left_join(struct, spec, relationship = 'many-to-many') %>%
     data = map(.x = data, .f = ~ .x %>% mutate(
       across(.cols = starts_with('var'), ~ replace_na(.x, -9999))
     ))
-  )
+  ) %>%
+  mutate(n_row = map(data, nrow),
+         n_col = map(data, ncol)) %>%
+  unnest(n_row, n_col)
 
 rm(struct, spec, response, spatial_cluster)
 
@@ -108,7 +124,7 @@ pre_process <- c('center', 'scale')
 
 set_seed_val <- 111
 
-n_cores <- detectCores() - 5
+n_cores <- parallel::detectCores() - 5
 
 source('R/rf_spatial_fold_func.R')
 
@@ -116,11 +132,15 @@ tictoc::tic()
 
 mdl_df <- mdl_df %>%
   mutate(
-    rf = map(.x = data,
-             .f = ~ mdl_func(
-               df = .x,
-               extra_col = c('campaign', 'plot', 'cluster_group')
-             )),
+    rf = map(
+      .x = data,
+      .f = ~ mdl_func(
+        df = .x,
+        extra_col = c('campaign', 'plot', 'cluster_group')
+      )))
+    
+mdl_df <- mdl_df %>%
+  mutate(
     rf_stats = map(.x = rf,
                    .f = ~ mdl_stats(mdl = .x)),
     var_imp = map(.x = rf,
