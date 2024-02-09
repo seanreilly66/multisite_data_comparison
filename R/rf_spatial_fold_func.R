@@ -1,15 +1,8 @@
-k_folds <- 3
-rfe_rep <- 3
-training_rep <- 10
+library(caret)
+library(doParallel)
+library(glue)
 
-pre_process <- c('center', 'scale')
-
-set_seed_val <- 111
-
-n_cores <- 1
-
-
-mdl_func <- function(df) {
+mdl_func <- function(df, extra_col) {
   
   # --------------------- Repeated grouped K fold indexing ---------------------
   
@@ -52,7 +45,7 @@ mdl_func <- function(df) {
   set.seed(set_seed_val)
   
   resp = df %>% pull(resp_val)
-  pred = df %>% select(-resp_val, -cluster_group)
+  pred = df %>% select(-resp_val, -any_of(extra_col))
   
   rfe_profile <- rfe(
     x = pred,
@@ -67,8 +60,6 @@ mdl_func <- function(df) {
   )
   
   stopCluster(cl)
-  
-  ml_var <- predictors(rfe_profile)
   
   # -------------------------------- Training ----------------------------------
   
@@ -109,14 +100,28 @@ mdl_stats <- function(mdl) {
   mdl_stats <- mdl$results %>%
     filter(mtry == mtry_opt)
   
+  return(mdl_stats)
 }
 
-mdl_var <- function(mdl) {
+mdl_varimp <- function(mdl) {
   
-  var_imp <- varImp(mdl)
+  var_imp <- varImp(mdl) %>%
+    pluck('importance') %>%
+    rownames_to_column() %>%
+    rename(var = rowname, imp = Overall)  %>%
+    slice_max(imp, n = 5)
   
-  var_imp <- var_imp$importance %>%
-    rownames()
+  while (nrow(var_imp) < 5) {
+    
+    var_imp <- var_imp %>%
+      add_row()
+    
+  }
   
+  var_imp <- var_imp %>%
+    add_column(var_lvl = 1:5) %>%
+    pivot_wider(names_from = var_lvl, values_from = c(var, imp))
   
+  return(var_imp)
+ 
 }
