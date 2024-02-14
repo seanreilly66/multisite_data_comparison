@@ -108,7 +108,7 @@ mdl_df = left_join(struct, spec, relationship = 'many-to-many') %>%
   ) %>%
   mutate(n_row = map(data, nrow),
          n_col = map(data, ncol)) %>%
-  unnest(n_row, n_col)
+  unnest(c(n_row, n_col))
 
 rm(struct, spec, response, spatial_cluster)
 
