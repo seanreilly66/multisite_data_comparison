@@ -120,13 +120,14 @@ fusion_metrics <- foreach(
 
   # Read in data
   
-  uas <- readLAS(uas_i, select = '', filter = 'drop_z_below 0.25')
-  ldr <- readLAS(ldr_i, select = '', filter = 'drop_z_below 0.25')
+  uas <- readLAS(uas_i, select = '', filter = '-drop_z_below 0.25')
+  ldr <- readLAS(ldr_i, select = '', filter = '-drop_z_below 0.25')
   
   # Full data
   
   full_fusion <- rbind(uas@data, ldr@data) %>%
-    LAS()
+    LAS() %>%
+    filter_poi(Z > 0.25)
 
   full_pnt_metrics <- full_fusion %>%
     cloud_metrics( ~ las_cld_metrics(z = Z)) %>%
