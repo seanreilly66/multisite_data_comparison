@@ -52,7 +52,7 @@ metric_fn <- 'R/las_metric_function.R'
 csv_output <-
   'data/predictor_df/las_plot_metrics_{format(Sys.time(), "%Y%m%d%H%M")}.csv'
 
-n_cluster <- 2
+# n_cluster <- 2
 
 # ============================= Point cloud metrics ============================
 
@@ -66,14 +66,15 @@ las_files <- list.files(
 
 # las_files <- las_files[1:2]
 
-cl <- makeCluster(n_cluster)
-registerDoParallel(cl)
+# cl <- makeCluster(n_cluster)
+# registerDoParallel(cl)
 
 las_metrics <- foreach(
   file_i = las_files,
   .combine = 'rbind',
   .packages = c('lidR', 'tidyverse', 'raster', 'doParallel')
-) %dopar% {
+# ) %dopar% {
+) %do% {
   
   source('R/las_metric_function.R')
   
@@ -138,7 +139,7 @@ las_metrics <- foreach(
   
 }
 
-stopCluster(cl)
+# stopCluster(cl)
 
 write_csv(las_metrics, glue(csv_output))
 
