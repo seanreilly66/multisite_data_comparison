@@ -1,3 +1,5 @@
+library(tidyverse)
+
 resp <- read_csv('data/field_data/plot_field_measurements.csv')
 
 tls <- read_csv('data/predictor_df/tls_struct_predictors.csv') %>%
@@ -29,3 +31,11 @@ planet_missing = anti_join(resp, planet)
 tls_samp %>%
   semi_join(planet, by = c('campaign', 'plot')) %>%
   nrow()
+
+shared_samp = inner_join(resp, uas, by = c('campaign', 'plot')) %>%
+  inner_join(tls, by = c('campaign', 'plot')) %>%
+  inner_join(zeb, by = c('campaign', 'plot'))
+
+site_samp = shared_samp %>%
+  group_by(site) %>%
+  summarize(n = n())
