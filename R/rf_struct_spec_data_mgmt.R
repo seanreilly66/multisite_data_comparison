@@ -137,7 +137,8 @@ mdl_df <- mdl_df %>%
       .f = ~ mdl_func(
         df = .x,
         extra_col = c('campaign', 'plot', 'cluster_group')
-      )))
+      ),
+      .progress = TRUE))
     
 mdl_df <- mdl_df %>%
   mutate(
