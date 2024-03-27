@@ -70,3 +70,9 @@ list.files('data/ml_output/results/merged', '.csv$', full.names = T) %>%
     bind_rows() %>%
     write_csv('data/ml_output/rf_results_master.csv')
 
+# Full df with model 
+
+list.files('data/ml_output/full_df/merged', '.Rdata$', full.names = T) %>%
+  lapply(read_rds) %>%
+  bind_rows() %>%
+  write_rds('data/ml_output/rf_results_master.Rdata')
