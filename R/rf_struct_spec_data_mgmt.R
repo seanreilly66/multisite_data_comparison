@@ -124,53 +124,71 @@ pre_process <- c('center', 'scale')
 
 set_seed_val <- 111
 
-n_cores <- parallel::detectCores() - 5
-
 source('R/rf_spatial_fold_func.R')
 
-tictoc::tic()
+# Add response for loop to output intermediate steps to avoid system crash
 
-mdl_df <- mdl_df %>%
-  mutate(
-    rf = map(
+mdl_df_t = mdl_df
+
+for (resp in unique(mdl_df$resp_type)) {
+  
+  mdl_df <- mdl_df_t %>%
+    filter(resp_type == resp)
+  
+  message('Initiating: ', resp)
+  
+# Return to normal code from here
+  
+  n_cores <- parallel::detectCores() - 5
+  
+  # tictoc::tic()
+  
+  mdl_df <- mdl_df %>%
+    mutate(rf = map(
       .x = data,
       .f = ~ mdl_func(
         df = .x,
         extra_col = c('campaign', 'plot', 'cluster_group')
       ),
-      .progress = TRUE))
-    
-mdl_df <- mdl_df %>%
-  mutate(
-    rf_stats = map(.x = rf,
-                   .f = ~ mdl_stats(mdl = .x)),
-    var_imp = map(.x = rf,
-                  .f = ~ mdl_varimp(mdl = .x))
-  ) %>%
-  unnest(c(rf_stats, var_imp))
-
-tictoc::toc()
-
-# ==============================================================================
-# =============================== Export output ================================
-# ==============================================================================
-
-timestamp = format(Sys.time(), "%Y%m%d%H%M")
-
-write_rds(mdl_df, glue(full_folder, file_base, type = 'full', ext = 'Rdata'))
-
-mdl_result <- mdl_df %>%
-  select(-data, -rf)
-
-write_csv(mdl_result,
-          glue(results_folder, file_base, type = 'result', ext = 'csv'))
-
-mdl_opt <- mdl_result %>%
-  group_by(resp_type) %>%
-  slice_max(order_by = Rsquared, n = 3)
-
-write_csv(mdl_opt,
-          glue(results_folder, file_base, type = 'opt', ext = 'csv'))
+      .progress = TRUE
+    ))
+  
+  mdl_df <- mdl_df %>%
+    mutate(
+      rf_stats = map(.x = rf,
+                     .f = ~ mdl_stats(mdl = .x)),
+      var_imp = map(.x = rf,
+                    .f = ~ mdl_varimp(mdl = .x))
+    ) %>%
+    unnest(c(rf_stats, var_imp))
+  
+  # tictoc::toc()
+  
+  # ==============================================================================
+  # =============================== Export output ================================
+  # ==============================================================================
+  
+  timestamp = format(Sys.time(), "%Y%m%d%H%M")
+  
+  write_rds(mdl_df,
+            glue(full_folder, file_base, type = 'full', ext = 'Rdata'))
+  
+  mdl_result <- mdl_df %>%
+    select(-data, -rf)
+  
+  write_csv(mdl_result,
+            glue(results_folder, file_base, type = 'result', ext = 'csv'))
+  
+  mdl_opt <- mdl_result %>%
+    group_by(resp_type) %>%
+    slice_max(order_by = Rsquared, n = 3)
+  
+  write_csv(mdl_opt,
+            glue(results_folder, file_base, type = 'opt', ext = 'csv'))
+  
+  message(resp, ' complete ', Sys.time())
+  
+}
 
 # ==============================================================================
 # ==============================================================================
