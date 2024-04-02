@@ -3,7 +3,6 @@ library(glue)
 library(ggpubr)
 
 mdl_varimp <- function(mdl) {
-  
   var_imp <- caret::varImp(mdl) %>%
     pluck('importance') %>%
     rownames_to_column() %>%
@@ -34,7 +33,7 @@ theme_set(
   )
 )
 
-df1 <- read_rds('data/ml_output/rf_results_master.Rdata') 
+df1 <- read_rds('data/ml_output/rf_results_master.Rdata')
 
 df <- df1 %>%
   group_by(resp_type, struct_pred, spec_pred) %>%
@@ -42,10 +41,8 @@ df <- df1 %>%
   slice_max(order_by = Rsquared, n = 1) %>%
   filter(struct_pred %in% c('uas', 'tls', 'zeb')) %>%
   select(-data) %>%
-  mutate(
-    var_imp = map(.x = rf,
-                  .f = ~ mdl_varimp(mdl = .x))
-  ) %>%
+  mutate(var_imp = map(.x = rf,
+                       .f = ~ mdl_varimp(mdl = .x))) %>%
   unnest(var_imp) %>%
   mutate(
     var_type = case_match(
@@ -53,13 +50,20 @@ df <- df1 %>%
       c('z_max', glue('z_p{i}', i = seq(65, 95, 5))) ~ 'Upper',
       c('z_mean', glue('z_p{i}', i = seq(35, 60, 5))) ~ 'Middle',
       glue('z_p{i}', i = seq(0, 30, 5)) ~  'Lower',
-      c('z_sd', 'z_cv', 'z_kurtosis', 'z_skewness', 'z_iqr', 'canopy_relief_ratio') ~ 'Variation',
+      c(
+        'z_sd',
+        'z_cv',
+        'z_kurtosis',
+        'z_skewness',
+        'z_iqr',
+        'canopy_relief_ratio'
+      ) ~ 'Variation',
       c(glue('d0{i}', i = 1:9), 'd10') ~ 'Density',
       c('cc_1m', 'cc_mean') ~ 'Cover',
       .default = 'Spectral'
     )
   ) %>%
-  group_by(resp_type, struct_pred, spec_pred, var_type) %>%
+  group_by(resp_type, struct_pred, spec_pred, var_type, Rsquared) %>%
   summarize(var_imp = sum(imp)) %>%
   mutate(
     resp_type = case_match(
@@ -75,37 +79,49 @@ df <- df1 %>%
       struct_pred,
       'tls' ~ 'TLS Struct',
       'zeb' ~ 'ZEB Struct',
-      'uas' ~ 'UAS-SfM Struct',
-      'tls_uas' ~ 'TLS + UAS-SfM',
-      'zeb_uas' ~ 'ZEB + UAS-SfM',
-      'none' ~ 'None'
+      'uas' ~ 'UAS-SfM Struct'
     ),
-    spec_pred = case_match(
-      spec_pred,
-      'none' ~ 'None',
-      'planet' ~ 'Planet',
-      'uas' ~ 'UAS'
+    struct_pred = factor(
+      struct_pred,
+      levels = c('TLS Struct', 'ZEB Struct', 'UAS-SfM Struct')
     ),
+    spec_pred = case_match(spec_pred,
+                           'none' ~ 'None',
+                           'planet' ~ 'Planet',
+                           'uas' ~ 'UAS'),
     spec_pred = replace_na(spec_pred, 'None'),
-    var_type = factor(var_type, 
-                       levels = c('Spectral', 'Cover', 'Variation', 'Density', 'Upper', 'Middle', 'Lower'))
+    var_type = factor(
+      var_type,
+      levels = c(
+        'Spectral',
+        'Cover',
+        'Variation',
+        'Density',
+        'Upper',
+        'Middle',
+        'Lower'
+      )
+    ),
+    lab = sprintf("%.2f", round(Rsquared, 2))
   )
 
 
 
 cols = c(
-  'Upper' = '#d55e00', 
-  'Middle' = '#e69f00', 
-  'Lower' = '#f0e442', 
-  'Variation' = '#56b4e9', 
-  'Density' = '#009e73', 
-  'Cover' = '#0072b2', 
-  'Spectral' = '#cc79a7')
+  'Upper' = '#d55e00',
+  'Middle' = '#e69f00',
+  'Lower' = '#f0e442',
+  'Variation' = '#56b4e9',
+  'Density' = '#009e73',
+  'Cover' = '#0072b2',
+  'Spectral' = '#cc79a7'
+)
 
 plt_lst = list()
 
-for (resp  in unique(df$resp_type)) {
-  
+resp_type = c('Biomass', 'Mean Height', 'CBH', 'CC', 'CBD', 'LAI')
+
+for (resp  in resp_type) {
   plt_df = df %>%
     filter(resp_type == resp)
   
@@ -113,12 +129,16 @@ for (resp  in unique(df$resp_type)) {
                aes(x = spec_pred,
                    y = var_imp,
                    fill = var_type)) +
-    geom_bar(position = 'fill',
-             stat = 'identity',
-             width = 1) +
-    scale_x_discrete(limits = c('UAS', 'Planet', 'None')) +
+    geom_bar(
+      position = 'fill',
+      stat = 'identity',
+      width = 0.95,
+      color = 'black',
+      linewidth = 0.1
+    ) +
+    scale_x_discrete(limits = c('None', 'UAS', 'Planet')) +
     # geom_text(aes(label = paste(Value, "%")), vjust = -0.25) +
-    facet_wrap( ~ struct_pred, strip.position = "bottom", scales = "free_x") +
+    facet_wrap(~ struct_pred, strip.position = "bottom", scales = "free_x") +
     scale_fill_manual(
       values = cols,
       limits = c(
@@ -130,6 +150,17 @@ for (resp  in unique(df$resp_type)) {
         'Middle',
         'Lower'
       )
+    ) +
+    geom_label(
+      mapping = aes(label = lab,
+                    y = 0),
+      family = 'serif',
+      fontface = 'plain',
+      fill = 'white',
+      vjust = 'inward',
+      label.padding = unit(0.15, "lines"),
+      label.r = unit(0, "lines"),
+      label.size = 0.1
     ) +
     labs(x = NULL,
          y = resp,
@@ -151,23 +182,31 @@ plt_lst = lapply(plt_lst[1:5], function(x) {
   x + theme(
     axis.ticks.x = element_blank(),
     axis.text.x = element_blank(),
-    strip.text = element_blank())
-  }) %>%
+    strip.text = element_blank()
+  )
+}) %>%
   append(plt_lst[6])
 
 
-ggarrange(plotlist = plt_lst, ncol = 1, common.legend = TRUE,
-          heights = c(0.75, 0.75, 0.75, 0.75, 0.75, 1), 
-          legend = 'bottom') %>%
-  annotate_figure(
-    left = text_grob('Relative Variable Importance', family = 'serif', size = 16, rot = 90)
-  )
+ggarrange(
+  plotlist = plt_lst,
+  ncol = 1,
+  common.legend = TRUE,
+  heights = c(0.75, 0.75, 0.75, 0.75, 0.75, 1),
+  legend = 'bottom'
+) %>%
+  annotate_figure(left = text_grob(
+    'Relative Variable Importance',
+    family = 'serif',
+    size = 16,
+    rot = 90
+  ))
 
 ggsave(
   filename = 'figures/rf_varimp.png',
   width = 8,
   height = 8,
   units = 'in',
-  dpi = 700
+  dpi = 700,
+  bg = 'white'
 )
-
