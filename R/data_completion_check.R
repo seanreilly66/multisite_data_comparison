@@ -42,6 +42,10 @@ site_samp = shared_samp %>%
   group_by(site) %>%
   summarize(n = n())
 
+shared_samp %>%
+  select(site, campaign, plot) %>%
+  write_csv('data/plot_list.csv')
+
 
 
 
