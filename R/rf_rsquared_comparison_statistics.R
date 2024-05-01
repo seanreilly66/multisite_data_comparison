@@ -1,57 +1,106 @@
 library(tidyverse)
 
-files <- list.files('data/ml_output/full_df', '.Rdata', full.names = T)
+df_file <- 'data/ml_output/rf_results_master.Rdata'
 
-files <- files %>%
-  str_subset('fusion')
+output_file <- 'data/ml_output/rf_nofusion_stats.csv'
 
-files <- list.files('data/ml_output/full_df/merged', '.Rdata', full.names = T)
+df_raw <- read_rds(df_file)
 
-for (i in files) {
+df_raw <- df_raw %>%
+  mutate(struct_pred = replace_na(struct_pred, 'none'),
+         spec_pred = replace_na(spec_pred, 'none')) %>%
+  filter(struct_pred %in% c('none', 'tls', 'zeb', 'uas')) %>%
+  filter(is.na(struct_type) | !(struct_type == 'pntcld' & h_thresh != 0.25))
+
+x = df %>%
+  group_by(resp_type, struct_pred, spec_pred, struct_type, vox_dim) %>%
+  summarize(
+    n = n()
+  )
   
-  message(i)
+
+
+# Extract replicate r2 values
+
+r2_extract = function(rf_train) {
+  r2 = rf_train$resample$Rsquared
+}
+
+dunnet_nest <- function(dat, p_name) {
   
-  x = read_rds(i)
-  
-  rsq_ext = function(rf_train) {
-    rf = rf_train$resample$Rsquared
-    
-  }
-  
-  x = x %>%
-    mutate(rf = map(.x = rf,
-                    .f = ~ rsq_ext(rf_train = .x))) %>%
-    select(-data) %>%
+  dat = dat %>%
     arrange(desc(Rsquared)) %>%
     rowid_to_column() %>%
-    unnest(rf)
+    unnest(r2)
   
-  y = DescTools::DunnettTest(rf ~ rowid, data = x, control = 1) %>%
+  if (length(unique(dat$rowid)) == 1) {
+    dat <- dat %>%
+      group_by(rowid) %>%
+      nest(r2 = r2) %>% 
+      add_column(pval = 0) %>%
+      rename(!!p_name := pval) %>%
+      select(-rowid)
+    
+    return(dat)
+  }
+  
+  dunnet <- DescTools::DunnettTest(r2 ~ rowid, data = dat, control = 1) %>%
     .[[1]] %>%
     as_tibble() %>%
     rowid_to_column() %>%
-    mutate(rowid = rowid + 1)
+    mutate(rowid = rowid + 1) %>%
+    select(rowid, pval)
   
-  x = x %>%
+  dat <- dat %>%
     group_by(rowid) %>%
-    nest(data = rf) %>%
-    select(-data) %>%
-    left_join(y) %>%
+    nest(r2 = r2) %>%
+    left_join(dunnet, by = 'rowid') %>%
+    mutate(pval = replace_na(pval, 100)) %>%
+    rename(!!p_name := pval) %>%
     select(-rowid)
   
-  output = str_replace(i, 'full_df', 'results') %>%
-    str_replace('full', 'compstat') %>%
-    str_replace('Rdata', 'csv')
-  
-  write_csv(x, output)
-  
-  output = str_replace(i, 'full_df', 'results') %>%
-    str_replace('full', 'compbest') %>%
-    str_replace('Rdata', 'csv')
-  
-  x = x %>%
-    filter(is.na(pval) | pval >= 0.05)
-  
-  write_csv(x, output)
-  
 }
+
+df <- df_raw %>%
+  mutate(r2 = map(.x = rf,
+                  .f = ~ r2_extract(rf_train = .x))) %>%
+  select(-data) %>%
+  arrange(desc(Rsquared))
+
+# Testing all models per response
+df <- df %>%
+  group_by(resp_type) %>%
+  nest() %>%
+  mutate(data = map(.x = data, 
+                       .f = ~ dunnet_nest(dat = .x, p_name = 'resp_p'),
+                       .progress = T)) %>%
+  unnest(data) %>%
+  select(-rowid)
+
+# Testing models per response by struct type
+df <- df %>%
+  group_by(resp_type, struct_pred) %>%
+  nest() %>%
+  mutate(data = map(.x = data, 
+                    .f = ~ dunnet_nest(dat = .x, p_name = 'struct_p'),
+                    .progress = T)) %>%
+  unnest(data) %>%
+  select(-rowid)
+
+# Testing models per response by struct and spec type
+df <- df %>%
+  group_by(resp_type, struct_pred, spec_pred) %>%
+  nest() %>%
+  mutate(data = map(.x = data, 
+                    .f = ~ dunnet_nest(dat = .x, p_name = 'struct_spec_p'),
+                    .progress = T)) %>%
+  unnest(data) %>%
+  select(-rowid)
+
+
+# Exporting final csv
+
+df <- df %>%
+  select(-r2)
+
+write_csv(df, output_file)
