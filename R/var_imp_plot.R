@@ -9,7 +9,8 @@ library(patchwork)
 # ================================= User inputs ================================
 # ==============================================================================
 
-results_file <- 'data/ml_output/rf_results_master.Rdata'
+mdl_results_file <- 'data/ml_output/rf_results_master.Rdata'
+stats_results_file <- 'data/ml_output/rf_nofusion_stats.csv'
 
 struct_pred_file <- 'data/predictor_df/uas_struct_predictors.csv'
 
@@ -32,9 +33,10 @@ mdl_varimp <- function(mdl) {
   
 }
 
-results_df <- read_rds(results_file) %>%
+results_df <- read_rds(mdl_results_file) %>%
   group_by(resp_type, struct_pred, spec_pred) %>%
   filter(!is.na(imp_1)) %>%
+  filter(is.na(struct_type) | !(struct_type == 'pntcld' & h_thresh != 0.25)) %>%
   slice_max(order_by = Rsquared, n = 1) %>%
   filter(struct_pred %in% c('uas', 'tls', 'zeb')) %>%
   select(-data) %>%
@@ -101,6 +103,45 @@ results_df <- read_rds(results_file) %>%
     ),
     lab = sprintf("%.2f", round(Rsquared, 2))
   )
+
+
+
+stats_results <- stats_results_file %>%
+  read_csv %>%
+  filter(struct_pred %in% c('uas', 'tls', 'zeb')) %>%
+  transmute(
+    resp_type = case_match(
+      resp_type,
+      'lai_mean' ~ 'LAI',
+      'cbd_mean' ~ 'CBD',
+      'cbh' ~ 'CBH',
+      'densiometer_mean' ~ 'CC',
+      'biomass_sum' ~ 'Biomass',
+      'h_mean' ~ 'Mean Height'
+    ),
+    struct_pred = case_match(
+      struct_pred,
+      'tls' ~ 'TLS Struct',
+      'zeb' ~ 'ZEB Struct',
+      'uas' ~ 'UAS-SfM Struct'
+    ),
+    struct_pred = factor(
+      struct_pred,
+      levels = c('TLS Struct', 'ZEB Struct', 'UAS-SfM Struct')
+    ),
+    spec_pred = case_match(spec_pred,
+                           'none' ~ 'No spec',
+                           'planet' ~ 'Planet',
+                           'uas' ~ 'UAS Spec'),
+    sig = ifelse(resp_p > 0.05, 
+                 'yes',
+                 'no'),
+    Rsquared = Rsquared,
+    resp_p = resp_p
+  ) 
+
+results_df <- results_df %>%
+  left_join(stats_results, relationship = 'many-to-many')
 
 # ==============================================================================
 # ============================= Reference data prep ============================
@@ -212,6 +253,7 @@ plt_lst = list()
 resp_type = c('Biomass', 'Mean Height', 'CBH', 'CC', 'CBD', 'LAI')
 
 for (resp  in resp_type) {
+  
   plt_df = results_df %>%
     filter(resp_type == resp)
   
@@ -243,9 +285,24 @@ for (resp  in resp_type) {
     geom_label(
       mapping = aes(label = lab,
                     y = 0),
+      size = 4.5,
       family = 'serif',
       fontface = 'plain',
       fill = 'white',
+      color = 'grey40',
+      vjust = 'inward',
+      label.padding = unit(0.15, "lines"),
+      label.r = unit(0, "lines"),
+      label.size = 0.1
+    ) +
+    geom_label(
+      data = plt_df %>% filter(sig == 'yes'),
+      mapping = aes(label = lab,
+                    y = 0),
+      size = 4.5,
+      family = 'serif',
+      fontface = 'bold',
+      fill = 'grey75',
       vjust = 'inward',
       label.padding = unit(0.15, "lines"),
       label.r = unit(0, "lines"),
@@ -262,6 +319,8 @@ for (resp  in resp_type) {
       axis.text.y = element_blank()
     ) +
     guides(fill = guide_legend(nrow = 1))
+  
+  # plt
   
   plt_lst[[resp]] = plt
   
@@ -334,13 +393,13 @@ plt = Reduce('+', plt_lst) + ref_plt +
   theme(legend.position='bottom') 
 
 plt = wrap_elements(plt) +
-  labs(tag = "                                  Relative Variable Importance") +
+  labs(tag = "Relative Variable Importance") +
   theme(
-    plot.tag = element_text(size = 18, angle = 90, hjust = 1),
+    plot.tag = element_text(size = 18, angle = 90, hjust = 0.65),
     plot.tag.position = 'left'
   ) 
 
-plt
+# plt
 
 ggsave(
   plot = plt,
@@ -351,3 +410,4 @@ ggsave(
   dpi = 700,
   bg = 'white'
 )
+
