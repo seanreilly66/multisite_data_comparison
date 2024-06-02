@@ -46,10 +46,9 @@ mdl_df <- results_file %>%
     struct_pred = factor(
       struct_pred,
       levels = c(
-        'UAS-SfM',
+        'TLS',
         'HMLS',
-        'TLS'
-      )
+        'UAS-SfM')
     )) %>%
   filter(
     is.na(h_thresh) | h_thresh == 0.25,
@@ -88,10 +87,11 @@ theme_set(
 
 letters_lab <- function(x) {glue::glue("{letters[factor(x)]}) {x}")}
 
+
 col_pal = c(
-  'TLS' = '#117733',
-  'HMLS' = '#CC6677',
-  'UAS-SfM' = '#69B3D8'
+  'HMLS' = '#BB8B46',
+  'UAS-SfM' = '#356D34',
+  'TLS' = '#882255'
 )
 
 shape_pal = c(
