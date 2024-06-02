@@ -59,6 +59,14 @@ las_z <- ldr_z %>%
       'tls' ~ 'TLS',
       'uas' ~ 'UAS-SfM',
       'zeb' ~ 'HMLS'
+    ),
+    las_method = factor(
+      las_method,
+      levels = c(
+        'TLS',
+        'HMLS',
+        'UAS-SfM'
+      )
     )
   ) %>%
   select(site, las_method, Z) %>%
@@ -135,9 +143,9 @@ theme_set(
 letters_lab <- function(x){glue::glue("{letters[factor(x)]}) {x}")}
 
 col_pal = c(
-  'TLS' = '#117733',
-  'HMLS' = '#CC6677',
-  'UAS-SfM' = '#69B3D8'
+  'HMLS' = '#BB8B46',
+  'UAS-SfM' = '#356D34',
+  'TLS' = '#882255'
 )
 
 
@@ -176,8 +184,8 @@ struct_fig = ggplot(
 ggsave(
   plot = struct_fig,
   filename = struct_output,
-  width = 8,
-  height = 6,
+  width = 7,
+  height = 5,
   units = 'in',
   dpi = 700,
   bg = 'white'
@@ -207,9 +215,9 @@ spec_fig = ggplot(
     x = 'NDVI',
     y = 'Density') +
   scale_color_manual(values = c('#E1BE6A', '#69B3D8'),
-                     name = 'Spectral data method') +
+                     name = NULL) +
   scale_fill_manual(values = c('#E1BE6A', '#69B3D8'),
-                     name = 'Spectral data method') +
+                     name = NULL) +
   guides(
     fill = guide_legend(position = 'bottom'),
     color = guide_legend(position = 'bottom')) +
@@ -223,8 +231,8 @@ spec_fig = ggplot(
 ggsave(
   plot = spec_fig,
   filename = spec_output,
-  width = 8,
-  height = 6,
+  width = 7,
+  height = 5,
   units = 'in',
   dpi = 700,
   bg = 'white'
