@@ -106,10 +106,10 @@ theme_set(
 letters_lab <- function(x) {glue::glue("{letters[factor(x)]}) {x}")}
 
 col_pal = c(
-  'TLS + UAS-SfM Complete' = '#117733',
-  'TLS + UAS-SfM Decimated' = '#44AA99',
-  'HMLS + UAS-SfM Complete' = '#CC6677',
-  'HMLS + UAS-SfM Decimated' = '#882255'
+  'TLS + UAS-SfM Complete' = '#882255',
+  'TLS + UAS-SfM Decimated' = '#CC6677',
+  'HMLS + UAS-SfM Complete' = '#117733',
+  'HMLS + UAS-SfM Decimated' = '#44AA99'
 )
 
 shape_pal = c(
