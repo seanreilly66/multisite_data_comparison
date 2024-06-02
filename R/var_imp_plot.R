@@ -77,12 +77,12 @@ results_df <- read_rds(mdl_results_file) %>%
     struct_pred = case_match(
       struct_pred,
       'tls' ~ 'TLS Struct',
-      'zeb' ~ 'ZEB Struct',
+      'zeb' ~ 'HMLS Struct',
       'uas' ~ 'UAS-SfM Struct'
     ),
     struct_pred = factor(
       struct_pred,
-      levels = c('TLS Struct', 'ZEB Struct', 'UAS-SfM Struct')
+      levels = c('TLS Struct', 'HMLS Struct', 'UAS-SfM Struct')
     ),
     spec_pred = replace_na(spec_pred, 'None'),
     spec_pred = case_match(spec_pred,
@@ -122,12 +122,12 @@ stats_results <- stats_results_file %>%
     struct_pred = case_match(
       struct_pred,
       'tls' ~ 'TLS Struct',
-      'zeb' ~ 'ZEB Struct',
+      'zeb' ~ 'HMLS Struct',
       'uas' ~ 'UAS-SfM Struct'
     ),
     struct_pred = factor(
       struct_pred,
-      levels = c('TLS Struct', 'ZEB Struct', 'UAS-SfM Struct')
+      levels = c('TLS Struct', 'HMLS Struct', 'UAS-SfM Struct')
     ),
     spec_pred = case_match(spec_pred,
                            'none' ~ 'No spec',
